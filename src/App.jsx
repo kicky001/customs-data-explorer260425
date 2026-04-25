@@ -38,6 +38,16 @@ function dedupRecords(records) {
   return out;
 }
 
+// 客户端排除过滤：任一 token 命中 Importer1 / Exporter1 / ProductDesc1 即丢弃
+function applyExcludes(records, tokens) {
+  if (!tokens || tokens.length === 0) return records;
+  const lc = tokens.map((t) => t.toLowerCase());
+  return records.filter((r) => {
+    const hay = `${r.Importer1 || ''} || ${r.Exporter1 || ''} || ${r.ProductDesc1 || ''}`.toLowerCase();
+    return !lc.some((t) => hay.includes(t));
+  });
+}
+
 export default function App() {
   const [settings, setSettings] = useState(() => loadSettings());
   const [showSettings, setShowSettings] = useState(false);
@@ -86,10 +96,27 @@ export default function App() {
     setError(null);
     setQueueState({ status: 'pending' });
 
+    // 拆出客户端字段，剩下的才发给 API
+    const { _excludes, ...apiPayload } = payload;
+
+    const finalize = (raw, opts = {}) => {
+      const original = raw?.records || [];
+      const filtered = applyExcludes(original, _excludes);
+      const droppedCount = original.length - filtered.length;
+      setData({
+        ...raw,
+        records: filtered,
+        _originalCount: original.length,
+        _droppedCount: droppedCount,
+        _excludes: _excludes || null,
+        ...opts,
+      });
+    };
+
     if (isDemoMode) {
       try {
-        const result = await runDemo(payload, pageNum);
-        setData(result);
+        const result = await runDemo(apiPayload, pageNum);
+        finalize(result);
         setStatus('cached');
         setQueueState(null);
         return;
@@ -112,7 +139,7 @@ export default function App() {
           sources.map((s) =>
             runQuery(
               settings.token,
-              { ...payload, sid: s.sid, page_num: pageNum },
+              { ...apiPayload, sid: s.sid, page_num: pageNum },
               { signal: controller.signal, apiBase: settings.apiBase },
             ),
           ),
@@ -130,27 +157,31 @@ export default function App() {
             failures += 1;
           }
         }
-        setData({
-          total: totalAcross,
-          records: dedupRecords(allRecords),
-          took_ms: 0,
-          aggregateNote:
-            failures > 0
-              ? `${sources.length - failures}/${sources.length} 个数据源成功`
-              : null,
-        });
+        finalize(
+          {
+            total: totalAcross,
+            records: dedupRecords(allRecords),
+            took_ms: 0,
+          },
+          {
+            aggregateNote:
+              failures > 0
+                ? `${sources.length - failures}/${sources.length} 个数据源成功`
+                : null,
+          },
+        );
         setStatus(cached ? 'cached' : 'done');
       } else {
         const { result, cached } = await runQuery(
           settings.token,
-          { ...payload, sid: selectedSid, page_num: pageNum },
+          { ...apiPayload, sid: selectedSid, page_num: pageNum },
           {
             signal: controller.signal,
             onProgress: (state) => setQueueState(state),
             apiBase: settings.apiBase,
           },
         );
-        setData(result);
+        finalize(result);
         setStatus(cached ? 'cached' : 'done');
       }
       setQueueState(null);

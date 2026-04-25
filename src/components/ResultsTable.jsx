@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight, Zap, Loader2, AlertCircle, Inbox } from 'lucide-react';
+import { ChevronDown, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight, Zap, Loader2, AlertCircle, Inbox, Ban } from 'lucide-react';
 
 const COLUMNS = [
   { key: 'Dates', label: '日期', width: '90px' },
@@ -135,10 +135,22 @@ export default function ResultsTable({ data, status, error, queueState, onPageCh
   }
 
   if (records.length === 0) {
+    const allDropped = data?._droppedCount > 0 && data._originalCount === data._droppedCount;
     return (
       <div className="flex-1 flex flex-col items-center justify-center px-8 text-center text-slate-500">
-        <Inbox size={32} className="mb-2 text-slate-300" />
-        <p className="text-sm">没有找到匹配的记录</p>
+        {allDropped ? (
+          <>
+            <Ban size={32} className="mb-2 text-rose-300" />
+            <p className="text-sm">本页 {data._originalCount} 条记录全部命中排除词</p>
+            <p className="text-xs mt-1">排除词：{data._excludes?.join('、')}</p>
+            <p className="text-xs mt-2 text-slate-400">点下一页继续翻，或调整排除词</p>
+          </>
+        ) : (
+          <>
+            <Inbox size={32} className="mb-2 text-slate-300" />
+            <p className="text-sm">没有找到匹配的记录</p>
+          </>
+        )}
       </div>
     );
   }
@@ -147,7 +159,7 @@ export default function ResultsTable({ data, status, error, queueState, onPageCh
     <div className="flex-1 flex flex-col min-h-0">
       <StatusBanner status={status === 'loading' ? queueState?.status || 'pending' : status} queueState={queueState} />
 
-      <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-200 text-xs text-slate-600 flex items-center gap-3">
+      <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-200 text-xs text-slate-600 flex items-center gap-3 flex-wrap">
         <span>
           共 <span className="font-semibold text-slate-900">{total.toLocaleString()}</span> 条
         </span>
@@ -159,6 +171,15 @@ export default function ResultsTable({ data, status, error, queueState, onPageCh
           <>
             <span className="text-slate-300">|</span>
             <span>耗时 {data.took_ms} ms</span>
+          </>
+        )}
+        {data?._droppedCount > 0 && (
+          <>
+            <span className="text-slate-300">|</span>
+            <span className="inline-flex items-center gap-1 text-rose-600" title={`命中排除词的记录已过滤：${data._excludes?.join(', ')}`}>
+              <Ban size={12} />
+              本页排除 {data._droppedCount} 条
+            </span>
           </>
         )}
       </div>
