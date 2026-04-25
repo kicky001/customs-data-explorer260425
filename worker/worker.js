@@ -1,16 +1,24 @@
-// Cloudflare Worker — proxy for https://cd.210k.cc with CORS headers
+// Cloudflare Worker — multi-upstream proxy with CORS headers
 //
-// 部署方式：
-//   1) 控制台手动：dash.cloudflare.com → Workers & Pages → Create → Hello World
-//      → 把这个文件内容粘贴进去 → Deploy。Worker URL 形如
-//      https://customs-data-proxy.<你的子域>.workers.dev
-//   2) Wrangler CLI：cd worker/ && npx wrangler deploy
+// 路由：
+//   /api/*         → https://cd.210k.cc/api/*           (海关数据)
+//   /anthropic/*   → https://api.anthropic.com/*        (Claude)
+//   /grok/*        → https://api.x.ai/*                 (xAI Grok)
+//   /healthz       → 健康检查
 //
-// 部署完成后，把 Worker URL 填到前端「设置 → API 代理 (可选)」。
+// 部署：
+//   方案 A：dash.cloudflare.com → Workers → Create → 粘贴本文件内容 → Deploy
+//   方案 B：cd worker/ && npx wrangler deploy
+//
+// 部署完得到的 URL 形如 https://customs-data-proxy.<你的子域>.workers.dev
+// 把它填到前端「设置 → API 代理」即可。
 
-const UPSTREAM = 'https://cd.210k.cc';
+const UPSTREAMS = [
+  { prefix: '/api/', host: 'https://cd.210k.cc', stripPrefix: false },
+  { prefix: '/anthropic/', host: 'https://api.anthropic.com', stripPrefix: true },
+  { prefix: '/grok/', host: 'https://api.x.ai', stripPrefix: true },
+];
 
-// 只允许这些来源使用代理（防止被当公开 CORS 桥滥用）
 const ALLOWED_ORIGINS = [
   'https://kicky001.github.io',
   'http://localhost:5173',
@@ -18,16 +26,40 @@ const ALLOWED_ORIGINS = [
   'http://127.0.0.1:5173',
 ];
 
+// 透传到上游的请求头白名单（其他都丢掉，避免 cf-* 等内部头泄漏）
+const FORWARD_HEADERS = new Set([
+  'authorization',
+  'content-type',
+  'x-api-key',
+  'anthropic-version',
+  'anthropic-dangerous-direct-browser-access',
+  'x-goog-api-key',
+  'x-goog-fieldmask',
+]);
+
 function buildCorsHeaders(origin) {
   const allowed = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
   return {
     'Access-Control-Allow-Origin': allowed,
     'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+    'Access-Control-Allow-Headers':
+      'Authorization, Content-Type, x-api-key, anthropic-version, anthropic-dangerous-direct-browser-access, x-goog-api-key, x-goog-fieldmask',
     'Access-Control-Allow-Credentials': 'false',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
   };
+}
+
+function matchUpstream(pathname) {
+  for (const u of UPSTREAMS) {
+    if (pathname.startsWith(u.prefix)) {
+      const remainder = u.stripPrefix
+        ? '/' + pathname.substring(u.prefix.length)
+        : pathname;
+      return { host: u.host, path: remainder };
+    }
+  }
+  return null;
 }
 
 export default {
@@ -35,12 +67,10 @@ export default {
     const origin = request.headers.get('Origin') || '';
     const cors = buildCorsHeaders(origin);
 
-    // 预检
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: cors });
     }
 
-    // 限制来源（同源/无 Origin header 的请求放行，跨源必须在白名单里）
     if (origin && !ALLOWED_ORIGINS.includes(origin)) {
       return new Response(JSON.stringify({ error: 'forbidden_origin', origin }), {
         status: 403,
@@ -50,12 +80,11 @@ export default {
 
     const url = new URL(request.url);
 
-    // 健康检查
     if (url.pathname === '/' || url.pathname === '/healthz') {
       return new Response(
         JSON.stringify({
           ok: true,
-          upstream: UPSTREAM,
+          upstreams: UPSTREAMS.map((u) => ({ prefix: u.prefix, host: u.host })),
           allowed_origins: ALLOWED_ORIGINS,
           ts: Date.now(),
         }),
@@ -63,19 +92,21 @@ export default {
       );
     }
 
-    // 转发 /api/* 到上游
-    if (!url.pathname.startsWith('/api/')) {
-      return new Response('not found', { status: 404, headers: cors });
+    const matched = matchUpstream(url.pathname);
+    if (!matched) {
+      return new Response(JSON.stringify({ error: 'no_upstream_match', path: url.pathname }), {
+        status: 404,
+        headers: { ...cors, 'Content-Type': 'application/json' },
+      });
     }
 
-    const upstreamUrl = UPSTREAM + url.pathname + url.search;
+    const upstreamUrl = matched.host + matched.path + url.search;
 
     const forward = new Headers();
-    const auth = request.headers.get('Authorization');
-    if (auth) forward.set('Authorization', auth);
-    const ct = request.headers.get('Content-Type');
-    if (ct) forward.set('Content-Type', ct);
-    forward.set('User-Agent', 'cde260425-worker/1.0');
+    for (const [k, v] of request.headers) {
+      if (FORWARD_HEADERS.has(k.toLowerCase())) forward.set(k, v);
+    }
+    forward.set('User-Agent', 'cde260425-worker/2.0');
 
     let body;
     if (request.method !== 'GET' && request.method !== 'HEAD') {
@@ -91,17 +122,15 @@ export default {
       });
     } catch (err) {
       return new Response(
-        JSON.stringify({ error: 'upstream_fetch_failed', detail: String(err) }),
+        JSON.stringify({ error: 'upstream_fetch_failed', upstream: matched.host, detail: String(err) }),
         { status: 502, headers: { ...cors, 'Content-Type': 'application/json' } },
       );
     }
 
-    // 镜像响应 + 注入 CORS
     const responseHeaders = new Headers(upstream.headers);
     for (const [k, v] of Object.entries(cors)) {
       responseHeaders.set(k, v);
     }
-    // 防止 Cloudflare 给这里加上 set-cookie 等多余 header
     responseHeaders.delete('set-cookie');
 
     return new Response(upstream.body, {

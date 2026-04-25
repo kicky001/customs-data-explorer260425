@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
-import { Sparkles, TrendingUp, Users, BarChart3, Copy, Check, Wand2, Loader2 } from 'lucide-react';
+import { Sparkles, TrendingUp, Users, BarChart3, Copy, Check, Wand2, Loader2, Search } from 'lucide-react';
 import { analyzeRecords, buildAnalysisPrompt } from '../utils/analysis.js';
+import LeadEnrichmentModal from './LeadEnrichmentModal.jsx';
 
 function fmtUSD(n) {
   if (!n && n !== 0) return '—';
@@ -42,7 +43,7 @@ function RankList({ title, items, formatter, icon: Icon }) {
   );
 }
 
-function LeadCard({ lead, idx }) {
+function LeadCard({ lead, idx, onEnrich, hasIntelKeys }) {
   return (
     <div className="bg-white rounded-md border border-emerald-200/70 p-2.5 space-y-1">
       <div className="flex items-start gap-2">
@@ -58,8 +59,20 @@ function LeadCard({ lead, idx }) {
           </div>
         </div>
       </div>
-      <div className="text-[11px] text-emerald-700 font-medium pl-7">
-        累计 {fmtUSD(lead.totalUSD)}
+      <div className="flex items-center justify-between pl-7">
+        <span className="text-[11px] text-emerald-700 font-medium">累计 {fmtUSD(lead.totalUSD)}</span>
+        <button
+          onClick={() => onEnrich(lead)}
+          className={`text-[10px] inline-flex items-center gap-1 px-1.5 py-0.5 rounded font-medium transition ${
+            hasIntelKeys
+              ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+              : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
+          }`}
+          title={hasIntelKeys ? '调用 Hunter/Maps/Grok 拉取邮箱、电话、综合情报' : '请先在「设置」里配置 Hunter / Google Maps / Grok Key'}
+        >
+          <Search size={10} />
+          情报
+        </button>
       </div>
     </div>
   );
@@ -116,8 +129,10 @@ export default function AnalysisPanel({ records, keyword, llm }) {
   const [llmAnswer, setLlmAnswer] = useState('');
   const [llmBusy, setLlmBusy] = useState(false);
   const [llmError, setLlmError] = useState(null);
+  const [enrichLead, setEnrichLead] = useState(null);
 
   const promptText = useMemo(() => buildAnalysisPrompt(keyword, analysis), [keyword, analysis]);
+  const hasIntelKeys = !!(llm?.hunterKey || llm?.gmapsKey || llm?.grokKey);
 
   const onCopy = () => {
     navigator.clipboard.writeText(promptText);
@@ -203,7 +218,13 @@ export default function AnalysisPanel({ records, keyword, llm }) {
             </h4>
             <div className="space-y-1.5">
               {analysis.leads.map((l, i) => (
-                <LeadCard key={l.importer} lead={l} idx={i} />
+                <LeadCard
+                  key={l.importer}
+                  lead={l}
+                  idx={i}
+                  hasIntelKeys={hasIntelKeys}
+                  onEnrich={setEnrichLead}
+                />
               ))}
             </div>
           </div>
@@ -259,6 +280,15 @@ export default function AnalysisPanel({ records, keyword, llm }) {
           </div>
         )}
       </div>
+
+      {enrichLead && (
+        <LeadEnrichmentModal
+          lead={enrichLead}
+          records={records}
+          settings={llm}
+          onClose={() => setEnrichLead(null)}
+        />
+      )}
     </aside>
   );
 }

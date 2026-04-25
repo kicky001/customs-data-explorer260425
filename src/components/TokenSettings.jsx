@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { X, Key, Sparkles, ShieldCheck, Globe } from 'lucide-react';
+import { X, Key, Sparkles, ShieldCheck, Globe, Mail, MapPin, Search } from 'lucide-react';
 
 const DEFAULT_LLM_ENDPOINT = 'https://api.openai.com/v1/chat/completions';
 const DEFAULT_LLM_MODEL = 'gpt-4o-mini';
+const DEFAULT_GROK_MODEL = 'grok-2-latest';
 
 export default function TokenSettings({ open, onClose, value, onSave }) {
   const [token, setToken] = useState(value?.token || '');
@@ -10,6 +11,10 @@ export default function TokenSettings({ open, onClose, value, onSave }) {
   const [llmKey, setLlmKey] = useState(value?.llmKey || '');
   const [llmEndpoint, setLlmEndpoint] = useState(value?.llmEndpoint || DEFAULT_LLM_ENDPOINT);
   const [llmModel, setLlmModel] = useState(value?.llmModel || DEFAULT_LLM_MODEL);
+  const [hunterKey, setHunterKey] = useState(value?.hunterKey || '');
+  const [gmapsKey, setGmapsKey] = useState(value?.gmapsKey || '');
+  const [grokKey, setGrokKey] = useState(value?.grokKey || '');
+  const [grokModel, setGrokModel] = useState(value?.grokModel || DEFAULT_GROK_MODEL);
 
   useEffect(() => {
     if (open) {
@@ -18,6 +23,10 @@ export default function TokenSettings({ open, onClose, value, onSave }) {
       setLlmKey(value?.llmKey || '');
       setLlmEndpoint(value?.llmEndpoint || DEFAULT_LLM_ENDPOINT);
       setLlmModel(value?.llmModel || DEFAULT_LLM_MODEL);
+      setHunterKey(value?.hunterKey || '');
+      setGmapsKey(value?.gmapsKey || '');
+      setGrokKey(value?.grokKey || '');
+      setGrokModel(value?.grokModel || DEFAULT_GROK_MODEL);
     }
   }, [open, value]);
 
@@ -40,6 +49,10 @@ export default function TokenSettings({ open, onClose, value, onSave }) {
       llmKey: llmKey.trim(),
       llmEndpoint: llmEndpoint.trim(),
       llmModel: llmModel.trim(),
+      hunterKey: hunterKey.trim(),
+      gmapsKey: gmapsKey.trim(),
+      grokKey: grokKey.trim(),
+      grokModel: grokModel.trim(),
     });
     onClose();
   };
@@ -147,6 +160,73 @@ export default function TokenSettings({ open, onClose, value, onSave }) {
             <p className="text-xs text-slate-500 mt-1.5">
               留空则只用本地规则分析。Anthropic 浏览器直连需要服务方在 CORS 头里返回 <code className="bg-slate-100 px-1 rounded">anthropic-dangerous-direct-browser-access</code>，否则用同一个 Worker 转发。
             </p>
+          </section>
+
+          <section className="border-t border-slate-200 pt-4">
+            <h3 className="text-sm font-bold text-slate-900 mb-2 flex items-center gap-1.5">
+              <Search size={15} className="text-emerald-600" />
+              客户情报增强（点客户线索卡上的「情报」按钮触发）
+            </h3>
+
+            <div className="space-y-3">
+              <div>
+                <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 mb-1">
+                  <Mail size={13} className="text-emerald-600" />
+                  Hunter API Key（邮箱情报）
+                </label>
+                <input
+                  type="password"
+                  value={hunterKey}
+                  onChange={(e) => setHunterKey(e.target.value)}
+                  placeholder="hunter.io 申请 · 25 次/月免费"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm font-mono focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                  autoComplete="off"
+                />
+              </div>
+
+              <div>
+                <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 mb-1">
+                  <MapPin size={13} className="text-emerald-600" />
+                  Google Maps API Key（电话/地址）
+                </label>
+                <input
+                  type="password"
+                  value={gmapsKey}
+                  onChange={(e) => setGmapsKey(e.target.value)}
+                  placeholder="启用 Places API (New) · 200 美元/月免额"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm font-mono focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                  autoComplete="off"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Google Cloud Console 启用 <strong>Places API (New)</strong> 并创建 API Key；建议加 HTTP referrer 限制到 kicky001.github.io。
+                </p>
+              </div>
+
+              <div>
+                <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 mb-1">
+                  <Sparkles size={13} className="text-emerald-600" />
+                  xAI Grok API Key（综合情报分析）
+                </label>
+                <input
+                  type="password"
+                  value={grokKey}
+                  onChange={(e) => setGrokKey(e.target.value)}
+                  placeholder="x.ai/api 申请"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm font-mono focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                  autoComplete="off"
+                />
+                <input
+                  type="text"
+                  value={grokModel}
+                  onChange={(e) => setGrokModel(e.target.value)}
+                  placeholder="grok-2-latest / grok-beta"
+                  className="mt-1.5 w-full border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-mono focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  ⚠️ Grok 不支持浏览器直连，<strong>必须配「API 代理」</strong>（前面那个 Worker URL），调用会自动走 Worker 的 <code className="bg-slate-100 px-1 rounded">/grok/*</code> 路由。
+                </p>
+              </div>
+            </div>
           </section>
         </div>
 
