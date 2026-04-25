@@ -7,10 +7,15 @@ const COLUMNS = [
   { key: 'Exporter1', label: '出口商', width: '180px' },
   { key: 'ProductDesc1', label: '产品描述', width: '320px' },
   { key: 'HSCODE', label: 'HS', width: '90px' },
-  { key: 'QTY', label: '数量', width: '70px', align: 'right' },
+  { key: 'QTY', label: '数量', width: '80px', align: 'right' },
   { key: 'UNIT', label: '单位', width: '60px' },
-  { key: 'TotalPrice', label: '总价 USD', width: '100px', align: 'right' },
+  { key: 'WT', label: '重量 KG', width: '90px', align: 'right' },
+  { key: 'TotalPrice', label: '总价 USD', width: '110px', align: 'right' },
   { key: 'UnitPrice', label: '单价 USD', width: '90px', align: 'right' },
+  { key: 'OrgCountry', label: '原产国', width: '110px' },
+  { key: 'DesCountry', label: '目的国', width: '110px' },
+  { key: 'LdPort', label: '装运港', width: '130px' },
+  { key: 'DesPort', label: '目的港', width: '130px' },
 ];
 
 function formatNum(v, decimals = 0) {
@@ -184,28 +189,31 @@ export default function ResultsTable({ data, status, error, queueState, onPageCh
         )}
       </div>
 
-      <div className="flex-1 overflow-auto scroll-thin">
-        <table className="text-xs w-full" style={{ minWidth: '1200px' }}>
-          <thead className="bg-slate-100 sticky top-0 z-10">
-            <tr>
-              <th className="w-6"></th>
-              {COLUMNS.map((c) => (
-                <th
-                  key={c.key}
-                  className={`px-2 py-2 font-semibold text-slate-700 text-[11px] uppercase tracking-wider border-b border-slate-200 ${c.align === 'right' ? 'text-right' : 'text-left'}`}
-                  style={{ width: c.width }}
-                >
-                  {c.label}
-                </th>
+      <div className="flex-1 relative min-h-0">
+        <div className="absolute inset-0 overflow-auto table-scroll">
+          <table className="text-xs w-full" style={{ minWidth: '1700px' }}>
+            <thead className="bg-slate-100 sticky top-0 z-10">
+              <tr>
+                <th className="w-6"></th>
+                {COLUMNS.map((c) => (
+                  <th
+                    key={c.key}
+                    className={`px-2 py-2 font-semibold text-slate-700 text-[11px] uppercase tracking-wider border-b border-slate-200 ${c.align === 'right' ? 'text-right' : 'text-left'}`}
+                    style={{ width: c.width }}
+                  >
+                    {c.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {records.map((r, i) => (
+                <Row key={r.BID || `${page}-${i}`} rec={r} idx={i} />
               ))}
-            </tr>
-          </thead>
-          <tbody>
-            {records.map((r, i) => (
-              <Row key={r.BID || `${page}-${i}`} rec={r} idx={i} />
-            ))}
-          </tbody>
-        </table>
+            </tbody>
+          </table>
+        </div>
+        <div className="pointer-events-none absolute right-0 top-0 bottom-3 w-6 bg-gradient-to-l from-white/95 to-transparent" />
       </div>
 
       {maxPage > 1 && (
