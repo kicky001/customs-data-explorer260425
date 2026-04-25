@@ -113,7 +113,7 @@ export default function App() {
             runQuery(
               settings.token,
               { ...payload, sid: s.sid, page_num: pageNum },
-              { signal: controller.signal },
+              { signal: controller.signal, apiBase: settings.apiBase },
             ),
           ),
         );
@@ -147,6 +147,7 @@ export default function App() {
           {
             signal: controller.signal,
             onProgress: (state) => setQueueState(state),
+            apiBase: settings.apiBase,
           },
         );
         setData(result);

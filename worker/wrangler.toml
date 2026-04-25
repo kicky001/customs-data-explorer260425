@@ -1,0 +1,6 @@
+name = "customs-data-proxy"
+main = "worker.js"
+compatibility_date = "2025-04-01"
+
+# 部署：在本目录跑 `npx wrangler deploy`
+# 改名：把上面的 name 改了重新 deploy 就会创建一个新 Worker

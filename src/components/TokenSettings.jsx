@@ -1,27 +1,42 @@
 import { useEffect, useState } from 'react';
-import { X, Key, Sparkles, ShieldCheck } from 'lucide-react';
+import { X, Key, Sparkles, ShieldCheck, Globe } from 'lucide-react';
+
+const DEFAULT_LLM_ENDPOINT = 'https://api.openai.com/v1/chat/completions';
+const DEFAULT_LLM_MODEL = 'gpt-4o-mini';
 
 export default function TokenSettings({ open, onClose, value, onSave }) {
   const [token, setToken] = useState(value?.token || '');
+  const [apiBase, setApiBase] = useState(value?.apiBase || '');
   const [llmKey, setLlmKey] = useState(value?.llmKey || '');
-  const [llmEndpoint, setLlmEndpoint] = useState(value?.llmEndpoint || 'https://api.openai.com/v1/chat/completions');
-  const [llmModel, setLlmModel] = useState(value?.llmModel || 'gpt-4o-mini');
+  const [llmEndpoint, setLlmEndpoint] = useState(value?.llmEndpoint || DEFAULT_LLM_ENDPOINT);
+  const [llmModel, setLlmModel] = useState(value?.llmModel || DEFAULT_LLM_MODEL);
 
   useEffect(() => {
     if (open) {
       setToken(value?.token || '');
+      setApiBase(value?.apiBase || '');
       setLlmKey(value?.llmKey || '');
-      setLlmEndpoint(value?.llmEndpoint || 'https://api.openai.com/v1/chat/completions');
-      setLlmModel(value?.llmModel || 'gpt-4o-mini');
+      setLlmEndpoint(value?.llmEndpoint || DEFAULT_LLM_ENDPOINT);
+      setLlmModel(value?.llmModel || DEFAULT_LLM_MODEL);
     }
   }, [open, value]);
 
   if (!open) return null;
 
+  const useClaudePreset = () => {
+    setLlmEndpoint('https://api.anthropic.com/v1/messages');
+    setLlmModel('claude-sonnet-4-6');
+  };
+  const useOpenAIPreset = () => {
+    setLlmEndpoint(DEFAULT_LLM_ENDPOINT);
+    setLlmModel(DEFAULT_LLM_MODEL);
+  };
+
   const submit = (e) => {
     e.preventDefault();
     onSave({
       token: token.trim(),
+      apiBase: apiBase.trim(),
       llmKey: llmKey.trim(),
       llmEndpoint: llmEndpoint.trim(),
       llmModel: llmModel.trim(),
@@ -64,9 +79,45 @@ export default function TokenSettings({ open, onClose, value, onSave }) {
 
           <section>
             <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-800 mb-2">
-              <Sparkles size={15} className="text-emerald-600" />
-              LLM API（可选 · 用于 AI 深度分析）
+              <Globe size={15} className="text-emerald-600" />
+              API 代理（可选，解决 CORS）
             </label>
+            <input
+              type="text"
+              value={apiBase}
+              onChange={(e) => setApiBase(e.target.value)}
+              placeholder="https://customs-data-proxy.your-name.workers.dev"
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+              autoComplete="off"
+            />
+            <p className="text-xs text-slate-500 mt-1.5">
+              留空则直接调用 cd.210k.cc（浏览器多半被 CORS 挡）。部署 Cloudflare Worker 代理后填它的 URL —— 见仓库 worker/README.md。
+            </p>
+          </section>
+
+          <section>
+            <div className="flex items-center justify-between mb-2">
+              <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-800">
+                <Sparkles size={15} className="text-emerald-600" />
+                LLM API（可选 · 用于 AI 深度分析）
+              </label>
+              <div className="flex gap-1 text-[10px]">
+                <button
+                  type="button"
+                  onClick={useClaudePreset}
+                  className="px-2 py-0.5 bg-slate-100 hover:bg-emerald-100 text-slate-700 rounded"
+                >
+                  Claude
+                </button>
+                <button
+                  type="button"
+                  onClick={useOpenAIPreset}
+                  className="px-2 py-0.5 bg-slate-100 hover:bg-emerald-100 text-slate-700 rounded"
+                >
+                  OpenAI
+                </button>
+              </div>
+            </div>
             <div className="space-y-2">
               <input
                 type="password"
@@ -94,15 +145,7 @@ export default function TokenSettings({ open, onClose, value, onSave }) {
               </div>
             </div>
             <p className="text-xs text-slate-500 mt-1.5">
-              留空则只用本地规则分析。注意：浏览器直调 LLM 可能受 CORS 限制，建议用 OpenAI 兼容代理。
-            </p>
-          </section>
-
-          <section className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
-            <p className="font-semibold mb-1">关于 CORS：</p>
-            <p>
-              如浏览器控制台报 CORS 错误，说明 cd.210k.cc 没开放跨域。可以临时用浏览器
-              CORS 插件，或部署一个 Cloudflare Workers 代理。
+              留空则只用本地规则分析。Anthropic 浏览器直连需要服务方在 CORS 头里返回 <code className="bg-slate-100 px-1 rounded">anthropic-dangerous-direct-browser-access</code>，否则用同一个 Worker 转发。
             </p>
           </section>
         </div>

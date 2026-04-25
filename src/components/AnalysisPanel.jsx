@@ -74,11 +74,13 @@ async function callLLM({ endpoint, key, model, prompt }) {
       headers: {
         'x-api-key': key,
         'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
         'content-type': 'application/json',
       },
       body: JSON.stringify({
         model,
         max_tokens: 1500,
+        system: '你是一名外贸客户开发顾问，基于海关数据给出业务洞察。',
         messages: [{ role: 'user', content: prompt }],
       }),
     });
